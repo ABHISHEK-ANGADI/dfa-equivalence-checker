@@ -2,45 +2,139 @@
 <html>
 <head>
     <title>DFA Equivalence Checker</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Compact sidebar inside index so it's easy to test */
+        .sidebar {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            background: linear-gradient(180deg, rgba(31,60,136,0.95), rgba(59,90,161,0.95));
+            color: #fff;
+            padding: 18px;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            z-index: 1100;
+        }
+        .sidebar h4 { margin-top: 0; color: #fff; }
+        .history-item {
+            background: rgba(255,255,255,0.06);
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform .15s ease, background .15s ease;
+        }
+        .history-item:hover { transform: translateY(-3px); background: rgba(255,255,255,0.12); }
+        .history-item .meta { font-size: 12px; opacity: 0.9; }
+        .history-empty { color: rgba(255,255,255,0.8); font-size: 14px; }
+        @media (max-width: 980px) {
+            .sidebar { position: static; width: auto; margin: 12px; }
+            .container { margin-top: 12px; }
+        }
+        .sidebar .btn-clear { margin-top: 8px; }
+    </style>
 </head>
 <body>
-<div id="laser" class="container">
-    <h1 class="text-center mb-4">DFA Equivalence Checker</h1>
-    <form method="POST">
-        <div  class="row">
-            <div class="col-md-6">
-                <h2>DFA 1</h2>
-                <label>States:</label>
-                <input type="text" name="states1" placeholder="e.g., q0,q1,q2" required>
-                <label>Alphabet:</label>
-                <input type="text" name="alphabet1" placeholder="e.g., 0,1" required>
-                <label>Start State:</label>
-                <input type="text" name="start1" placeholder="e.g., q0" required>
-                <label>Accept States:</label>
-                <input type="text" name="accept1" placeholder="e.g., q0" required>
-                <label>Transitions:</label>
-                <textarea name="transitions1" rows="4" placeholder="Format: q0 0 q1; q0 1 q0" required></textarea>
+    <div class="sidebar" id="sidebar">
+        <h4>Recent Comparisons</h4>
+        <div id="historyList"></div>
+        <button class="btn btn-sm btn-light btn-clear" id="clearHistory">Clear</button>
+    </div>
+
+    <div class="container" style="max-width:980px; margin-left:340px;">
+        <h1 class="text-center mb-4">DFA Equivalence Checker</h1>
+        <form method="POST" id="dfaForm">
+            <div class="row">
+                <div class="col-md-6">
+                    <h2>DFA 1</h2>
+                    <label>States:</label>
+                    <input type="text" name="states1" id="states1" placeholder="e.g., q0,q1,q2" required>
+                    <label>Alphabet:</label>
+                    <input type="text" name="alphabet1" id="alphabet1" placeholder="e.g., 0,1" required>
+                    <label>Start State:</label>
+                    <input type="text" name="start1" id="start1" placeholder="e.g., q0" required>
+                    <label>Accept States:</label>
+                    <input type="text" name="accept1" id="accept1" placeholder="e.g., q0" required>
+                    <label>Transitions:</label>
+                    <textarea name="transitions1" id="transitions1" rows="4" placeholder="Format: q0 0 q1; q0 1 q0" required></textarea>
+                </div>
+                <div class="col-md-6">
+                    <h2>DFA 2</h2>
+                    <label>States:</label>
+                    <input type="text" name="states2" id="states2" placeholder="e.g., p0,p1,p2" required>
+                    <label>Alphabet:</label>
+                    <input type="text" name="alphabet2" id="alphabet2" placeholder="e.g., 0,1" required>
+                    <label>Start State:</label>
+                    <input type="text" name="start2" id="start2" placeholder="e.g., p0" required>
+                    <label>Accept States:</label>
+                    <input type="text" name="accept2" id="accept2" placeholder="e.g., p0" required>
+                    <label>Transitions:</label>
+                    <textarea name="transitions2" id="transitions2" rows="4" placeholder="Format: p0 0 p1; p0 1 p0" required></textarea>
+                </div>
             </div>
-            <div class="col-md-6">
-                <h2>DFA 2</h2>
-                <label>States:</label>
-                <input type="text" name="states2" placeholder="e.g., p0,p1,p2" required>
-                <label>Alphabet:</label>
-                <input type="text" name="alphabet2" placeholder="e.g., 0,1" required>
-                <label>Start State:</label>
-                <input type="text" name="start2" placeholder="e.g., p0" required>
-                <label>Accept States:</label>
-                <input type="text" name="accept2" placeholder="e.g., p0" required>
-                <label>Transitions:</label>
-                <textarea name="transitions2" rows="4" placeholder="Format: p0 0 p1; p0 1 p0" required></textarea>
+            <div class="text-center mt-3">
+                <input type="submit" value="Check Equivalence" class="btn btn-primary btn-lg">
             </div>
-        </div>
-        <div class="text-center mt-3">
-            <input type="submit" value="Check Equivalence">
-        </div>
-    </form>
-</div>
+        </form>
+    </div>
+
+<script>
+/* Render history list from localStorage */
+function renderHistory() {
+    const history = JSON.parse(localStorage.getItem('dfaHistory')) || [];
+    const list = document.getElementById('historyList');
+    list.innerHTML = '';
+    if (history.length === 0) {
+        list.innerHTML = '<div class="history-empty">No previous comparisons</div>';
+        return;
+    }
+    history.forEach((entry, idx) => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        // show result, time and small summary of states/alphabet
+        div.innerHTML = `<strong>${entry.result || 'Not checked yet'}</strong>
+                         <div class="meta">${entry.time}</div>
+                         <div class="meta">DFA1: ${entry.dfa1.states} | DFA2: ${entry.dfa2.states}</div>`;
+        div.addEventListener('click', () => {
+            // load entry into form inputs
+            document.getElementById('states1').value = entry.dfa1.states;
+            document.getElementById('alphabet1').value = entry.dfa1.alphabet;
+            document.getElementById('start1').value = entry.dfa1.start;
+            document.getElementById('accept1').value = entry.dfa1.accept;
+            document.getElementById('transitions1').value = entry.dfa1.transitions;
+
+            document.getElementById('states2').value = entry.dfa2.states;
+            document.getElementById('alphabet2').value = entry.dfa2.alphabet;
+            document.getElementById('start2').value = entry.dfa2.start;
+            document.getElementById('accept2').value = entry.dfa2.accept;
+            document.getElementById('transitions2').value = entry.dfa2.transitions;
+
+            // scroll to form and highlight briefly
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            const form = document.getElementById('dfaForm');
+            form.style.transition = 'box-shadow 0.3s ease';
+            form.style.boxShadow = '0 10px 30px rgba(31,60,136,0.2)';
+            setTimeout(() => { form.style.boxShadow = ''; }, 900);
+        });
+        list.appendChild(div);
+    });
+}
+
+/* Clear history button */
+document.getElementById('clearHistory').addEventListener('click', () => {
+    if (!confirm('Clear recent history?')) return;
+    localStorage.removeItem('dfaHistory');
+    renderHistory();
+});
+
+/* initial render */
+renderHistory();
+</script>
 </body>
 </html>

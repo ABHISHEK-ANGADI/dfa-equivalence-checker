@@ -7,7 +7,6 @@ app = Flask(__name__)
 IMAGE_FOLDER = 'static/dfa_images'
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
 
-# DFA Class
 class DFA:
     def __init__(self, states, alphabet, transition, start, accept):
         self.states = states
@@ -19,7 +18,6 @@ class DFA:
     def move(self, state, symbol):
         return self.transition[(state, symbol)]
 
-# Equivalence Checker
 def check_equivalence(dfa1, dfa2):
     visited = set()
     queue = deque()
@@ -38,7 +36,6 @@ def check_equivalence(dfa1, dfa2):
             queue.append((ns1, ns2, string + symbol))
     return True, None
 
-# Visualization
 def visualize_dfa(dfa, filename):
     dot = graphviz.Digraph(format='png')
     for state in dfa.states:
@@ -51,48 +48,72 @@ def visualize_dfa(dfa, filename):
     dot.render(filepath, cleanup=True)
     return filepath + '.png'
 
-# Routes
 @app.route("/", methods=["GET", "POST"])
 def index():
     if request.method == "POST":
-        # Get DFA 1
-        states1 = request.form['states1'].split(',')
-        alphabet1 = request.form['alphabet1'].split(',')
-        start1 = request.form['start1']
-        accept1 = request.form['accept1'].split(',')
+        # Keep the raw string values so we can store them in history later
+        raw_states1 = request.form['states1']
+        raw_alphabet1 = request.form['alphabet1']
+        raw_start1 = request.form['start1']
+        raw_accept1 = request.form['accept1']
+        raw_transitions1 = request.form['transitions1']
+
+        raw_states2 = request.form['states2']
+        raw_alphabet2 = request.form['alphabet2']
+        raw_start2 = request.form['start2']
+        raw_accept2 = request.form['accept2']
+        raw_transitions2 = request.form['transitions2']
+
+        # Parse to build DFA objects (same as before)
+        states1 = raw_states1.split(',')
+        alphabet1 = raw_alphabet1.split(',')
+        start1 = raw_start1
+        accept1 = raw_accept1.split(',')
         transitions1 = {}
-        for t in request.form['transitions1'].split(';'):
+        for t in raw_transitions1.split(';'):
             if t.strip() == '':
                 continue
             s, sym, ns = t.strip().split()
             transitions1[(s, sym)] = ns
         dfa1 = DFA(states1, alphabet1, transitions1, start1, accept1)
 
-        # Get DFA 2
-        states2 = request.form['states2'].split(',')
-        alphabet2 = request.form['alphabet2'].split(',')
-        start2 = request.form['start2']
-        accept2 = request.form['accept2'].split(',')
+        states2 = raw_states2.split(',')
+        alphabet2 = raw_alphabet2.split(',')
+        start2 = raw_start2
+        accept2 = raw_accept2.split(',')
         transitions2 = {}
-        for t in request.form['transitions2'].split(';'):
+        for t in raw_transitions2.split(';'):
             if t.strip() == '':
                 continue
             s, sym, ns = t.strip().split()
             transitions2[(s, sym)] = ns
         dfa2 = DFA(states2, alphabet2, transitions2, start2, accept2)
 
-        # Check equivalence
         equivalent, counterexample = check_equivalence(dfa1, dfa2)
 
-        # Visualize DFAs
         img1 = visualize_dfa(dfa1, 'dfa1')
         img2 = visualize_dfa(dfa2, 'dfa2')
 
+        # Pass raw inputs to template so result.html can save full entry to localStorage
         return render_template("result.html",
                                equivalent=equivalent,
                                counterexample=counterexample,
                                img1=img1,
-                               img2=img2)
+                               img2=img2,
+                               raw1={
+                                   "states": raw_states1,
+                                   "alphabet": raw_alphabet1,
+                                   "start": raw_start1,
+                                   "accept": raw_accept1,
+                                   "transitions": raw_transitions1
+                               },
+                               raw2={
+                                   "states": raw_states2,
+                                   "alphabet": raw_alphabet2,
+                                   "start": raw_start2,
+                                   "accept": raw_accept2,
+                                   "transitions": raw_transitions2
+                               })
     return render_template("index.html")
 
 if __name__ == "__main__":
